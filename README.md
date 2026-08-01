@@ -17,7 +17,9 @@ This is a deliberately narrow tool. It doesn't rate, tag, edit, or organise. It 
 
 ## What it is
 
-A single Python script with no dependencies. It runs a small local web server and uses your default browser as the display; all file operations happen in the script, on your machine. Nothing is uploaded anywhere. (Prefer zero installation? There's also a [web version](#web-version).)
+A single Python script with no dependencies. It runs a small local web server and uses your default browser as the display; all file operations happen in the script, on your machine. Nothing is uploaded anywhere.
+
+**Prefer zero installation? There's also a [web version](https://rawshuck.pages.dev).**
 
 - **Deletions go to the macOS Trash** (via Finder) — recoverable until you empty it.
 - **Reviews RAW+JPEG pairs, lone images, and lone RAWs.** Pairing is by filename (`IMG_1234.JPG` + `IMG_1234.CR3`).
@@ -59,7 +61,9 @@ Nothing touches disk until you press **Commit**, which shows exactly what will b
 
 ## Web version
 
-The same review flow also exists as a browser-only app in [`web/`](web/) — nothing to install, nothing uploaded anywhere (it's a static page; all file access happens locally in your browser). Differences from the Python version:
+The same review flow also exists as an online app at https://rawshuck.pages.dev — nothing to install, nothing uploaded anywhere (it's a static page; all file access happens locally in your browser).
+
+Differences from the Python version:
 
 - **Chromium-only** (Chrome, Edge, Brave, Arc, Opera). It relies on the File System Access API to read and delete local files, which Safari and Firefox don't support.
 - **Deletions are permanent** — browsers cannot use the Trash. Ideal for fresh-shoot culling where the SD card is your safety net; for back-catalogue tidying, the Python version's Trash-based deletes are the safer choice.
