@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rawshuck — cull RAW+JPEG photos</title>
+<meta name="description" content="Cull RAW+JPEG photo shoots in your browser. Keep the JPEGs, shuck the RAWs. Runs entirely locally — no uploads.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+<style>
+  :root {
+    --bg: #16181c; --panel: #1f2228; --border: #32363e;
+    --text: #e8eaed; --dim: #9aa0a8;
+    --green: #4caf7d; --blue: #5b9bd5; --red: #e06055; --gray: #6b7078;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+  a { color: var(--blue); }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; min-height: 46px;
+  }
+  header .title { font-weight: 600; }
+  header .spacer { flex: 1; }
+  #sourceName { color: var(--dim); font-size: 13px; cursor: pointer; border-bottom: 1px dotted var(--dim); }
+  #sourceName:hover { color: var(--text); border-bottom-color: var(--text); }
+  .counts { display: flex; gap: 12px; font-size: 13px; color: var(--dim); }
+  .counts b { color: var(--text); }
+  .counts .c-both b { color: var(--green); }
+  .counts .c-jpeg b { color: var(--blue); }
+  .counts .c-trash b { color: var(--red); }
+  button {
+    background: #2a2e36; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #343943; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary { background: var(--green); border-color: var(--green); color: #0d1512; font-weight: 600; }
+  button.primary:hover { background: #5cc08e; }
+  button.danger { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+  button.danger:hover { background: #e97b72; }
+  #viewer {
+    flex: 1; position: relative; overflow: hidden; background: #0c0d10;
+    cursor: grab; touch-action: none;
+  }
+  #viewer.dragging { cursor: grabbing; }
+  #photo {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0;
+    will-change: transform; pointer-events: none;
+  }
+  #noPreview {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 8px; color: var(--dim); font-size: 15px;
+    pointer-events: none; text-align: center; padding: 20px;
+  }
+  .overlay-badge {
+    position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center;
+    pointer-events: none; z-index: 5;
+  }
+  .badge {
+    padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+  }
+  .badge.decision-both { color: var(--green); border: 1px solid var(--green); }
+  .badge.decision-jpeg { color: var(--blue); border: 1px solid var(--blue); }
+  .badge.decision-trash { color: var(--red); border: 1px solid var(--red); }
+  .badge.decision-none { color: var(--gray); border: 1px solid var(--gray); }
+  .badge.rawinfo { color: var(--dim); border: 1px solid var(--border); }
+  #zoomInfo {
+    position: absolute; top: 12px; right: 12px; z-index: 5; pointer-events: none;
+    font-size: 12px; color: var(--dim); background: rgba(0,0,0,0.55);
+    padding: 4px 10px; border-radius: 5px;
+  }
+  footer {
+    background: var(--panel); border-top: 1px solid var(--border);
+    padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .decide { padding: 9px 18px; font-size: 14px; border-radius: 8px; border-width: 2px; }
+  .decide .key {
+    display: inline-block; background: rgba(255,255,255,0.12); border-radius: 4px;
+    padding: 1px 7px; font-size: 11px; margin-left: 8px; font-family: ui-monospace, monospace;
+  }
+  .decide.active-both { border-color: var(--green); color: var(--green); }
+  .decide.active-jpeg { border-color: var(--blue); color: var(--blue); }
+  .decide.active-trash { border-color: var(--red); color: var(--red); }
+  .navbtn { padding: 9px 14px; font-size: 16px; }
+  .hint { text-align: center; font-size: 12px; color: var(--dim); }
+  #filename { text-align: center; font-size: 13px; color: var(--dim); }
+  #filename b { color: var(--text); font-weight: 500; }
+  #progressbar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: #2a2e36; }
+  #progressbar div { flex: 1; min-width: 0; cursor: pointer; }
+  #progressbar div.d-both { background: var(--green); }
+  #progressbar div.d-jpeg { background: var(--blue); }
+  #progressbar div.d-trash { background: var(--red); }
+  #progressbar div.d-none { background: transparent; }
+  #progressbar div.current { outline: 1px solid #fff; outline-offset: -1px; }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; max-width: 500px; width: 92%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 17px; margin-bottom: 12px; }
+  .modal p { font-size: 14px; line-height: 1.55; color: var(--dim); margin-bottom: 10px; }
+  .modal p b { color: var(--text); }
+  .modal .warn { color: #e0b055; font-weight: 500; }
+  .modal .permanent { color: var(--red); font-weight: 600; }
+  .modal .btnrow { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .hidden { display: none !important; }
+
+  /* start screen */
+  #startScreen {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; text-align: center;
+    padding: 24px; overflow-y: auto;
+  }
+  #startScreen h1 { font-size: 26px; font-weight: 650; }
+  #startScreen .tagline { color: var(--dim); font-size: 15px; max-width: 560px; line-height: 1.5; }
+  #dropZone {
+    border: 2px dashed var(--border); border-radius: 14px; padding: 34px 44px;
+    color: var(--dim); font-size: 15px; max-width: 560px; transition: border-color .15s, color .15s;
+  }
+  #dropZone.over { border-color: var(--green); color: var(--green); }
+  .startBtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .startBtns button { font-size: 15px; padding: 10px 22px; }
+  .startNote { font-size: 12.5px; color: var(--dim); max-width: 560px; line-height: 1.5; }
+  .startNote.warn { color: #e0b055; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">🌽 Rawshuck</span>
+  <span id="sourceName" class="hidden" title="Click to choose a different folder or set of files"></span>
+  <span class="spacer"></span>
+  <div class="counts" id="counts"></div>
+  <button id="btnNextUndecided" class="hidden">Next undecided <span style="opacity:.6;font-size:11px">N</span></button>
+  <button id="btnCommit" class="primary hidden">Commit…</button>
+</header>
+
+<div id="viewer">
+  <div id="startScreen">
+    <h1>🌽 Rawshuck</h1>
+    <p class="tagline">Cull RAW+JPEG shoots <i>before</i> importing into your photo library.
+      Review each photo once and pick its fate: keep image+RAW, keep the image only,
+      or delete. Runs entirely in your browser — nothing is uploaded anywhere.</p>
+    <div id="dropZone">Drag &amp; drop a folder (or image files) here</div>
+    <div class="startBtns">
+      <button class="primary" id="btnPickFolder">Choose folder…</button>
+      <button id="btnPickFiles">Pick files…</button>
+    </div>
+    <p class="startNote warn">⚠ Web-version deletions are <b>permanent</b> — the browser cannot use
+      the Trash. Keep your memory card (or exported originals) until you've verified the result.
+      Prefer recoverable deletes? Use the <a href="https://github.com/JaydenM-C/rawshuck" target="_blank" rel="noopener">Python version</a>,
+      which moves files to the macOS Trash.</p>
+    <p class="startNote" id="compatMsg" style="display:none;">This browser doesn't support local file
+      access. Rawshuck's web version needs a Chromium browser (Chrome, Edge, Brave, Arc, Opera) —
+      or use the <a href="https://github.com/JaydenM-C/rawshuck" target="_blank" rel="noopener">Python version</a>, which works everywhere.</p>
+  </div>
+  <img id="photo" class="hidden" alt="">
+  <div id="noPreview" class="hidden"></div>
+  <div class="overlay-badge hidden" id="badges">
+    <span class="badge" id="decisionBadge"></span>
+    <span class="badge rawinfo" id="rawBadge"></span>
+  </div>
+  <div id="zoomInfo" class="hidden"></div>
+</div>
+
+<footer id="footer" class="hidden">
+  <div id="filename"></div>
+  <div id="progressbar"></div>
+  <div class="controls">
+    <button class="navbtn" id="btnPrev" title="Previous (&#8592;)">&#8592;</button>
+    <button class="decide" id="btnBoth"></button>
+    <button class="decide" id="btnJpeg">Image only<span class="key">J</span></button>
+    <button class="decide" id="btnTrash">Delete<span class="key">&#9003;</span></button>
+    <button class="navbtn" id="btnNext" title="Next (&#8594;)">&#8594;</button>
+  </div>
+  <div class="hint">&#8592; &#8594; navigate &middot; U clear choice &middot; N next undecided &middot; scroll to zoom &middot; drag to pan &middot; double-click 100%/fit</div>
+</footer>
+
+<div class="modal-backdrop hidden" id="modalBackdrop">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- constants
+
+const DIRECT_EXTS = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+const PLACEHOLDER_EXTS = new Set(["heic", "heif", "tif", "tiff"]);
+const DISPLAY_EXTS = new Set([...DIRECT_EXTS, ...PLACEHOLDER_EXTS]);
+const RAW_EXTS = new Set(["cr3", "cr2", "crw", "dng", "arw", "nef", "nrw",
+                          "raf", "orf", "rw2", "pef", "srw"]);
+const PRIORITY = ["jpg", "jpeg", "heic", "heif", "png", "webp", "tif", "tiff", "gif"];
+const REPO_URL = "https://github.com/JaydenM-C/rawshuck";
+
+// ---------------------------------------------------------------- pure functions
+// (kept side-effect-free so they can be unit-tested in node)
+
+function extOf(name) {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+function baseOf(name) {
+  const dot = name.lastIndexOf(".");
+  return (dot > 0 ? name.slice(0, dot) : name).toLowerCase();
+}
+
+// Insert a unique JPEG COM (comment) segment so the file's checksum differs
+// from copies iCloud Photos has previously seen — otherwise iCloud's
+// server-side dedupe re-pairs reimported JPEGs with their deleted RAWs.
+// Image data and EXIF untouched; no re-encoding.
+// NB: the "photo-cull:" marker predates the project's name and is kept
+// stable so files marked by any version are recognised (internal format).
+function markJpegBytes(bytes, uuidStr) {
+  if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) {
+    return { error: "not a JPEG (missing SOI marker)" };
+  }
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 65536));
+  if (head.includes("photo-cull:")) return { already: true };
+  // Insertion point: after SOI and any contiguous APPn (JFIF/EXIF) segments.
+  let i = 2;
+  while (i + 4 <= bytes.length && bytes[i] === 0xFF &&
+         bytes[i + 1] >= 0xE0 && bytes[i + 1] <= 0xEF) {
+    const seglen = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (seglen < 2) return { error: "malformed APPn segment" };
+    i += 2 + seglen;
+  }
+  const comment = new TextEncoder().encode("photo-cull:" + uuidStr);
+  const seg = new Uint8Array(4 + comment.length);
+  seg[0] = 0xFF; seg[1] = 0xFE;
+  const len = comment.length + 2;
+  seg[2] = (len >> 8) & 0xFF; seg[3] = len & 0xFF;
+  seg.set(comment, 4);
+  const out = new Uint8Array(bytes.length + seg.length);
+  out.set(bytes.subarray(0, i), 0);
+  out.set(seg, i);
+  out.set(bytes.subarray(i), i + seg.length);
+  return { bytes: out };
+}
+
+// Locate the embedded JPEG preview (PRVW box) in a CR3 file.
+// CR3 is an ISO-BMFF container; Canon stores a ~1620px JPEG preview in a
+// top-level uuid box containing a 'PRVW' box, before the mdat payload.
+// Returns {start, end} byte offsets of the JPEG within `bytes`, or null.
+function findCr3PreviewRange(bytes) {
+  const n = Math.min(bytes.length, 8 * 1024 * 1024);
+  for (let i = 4; i < n - 8; i++) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x52 &&
+        bytes[i + 2] === 0x56 && bytes[i + 3] === 0x57) { // "PRVW"
+      const boxStart = i - 4;
+      const size = ((bytes[boxStart] << 24) | (bytes[boxStart + 1] << 16) |
+                    (bytes[boxStart + 2] << 8) | bytes[boxStart + 3]) >>> 0;
+      if (size < 32 || boxStart + size > bytes.length) continue;
+      // JPEG SOI sits a few bytes into the PRVW payload; scan a short window.
+      const limit = Math.min(i + 64, boxStart + size - 2);
+      for (let j = i + 4; j < limit; j++) {
+        if (bytes[j] === 0xFF && bytes[j + 1] === 0xD8 && bytes[j + 2] === 0xFF) {
+          return { start: j, end: boxStart + size };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function fmtBytes(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + " GB";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + " MB";
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + " KB";
+  return n + " B";
+}
+
+// ---------------------------------------------------------------- state
+
+let source = null;   // { label, roots: [{kind:"dir"|"file", handle}] }
+let photos = [];     // { id, name, imgE, rawE, rawOnly, markable, decision }
+                     //   entries: { name, handle, parent|null }
+let idx = 0;
+let committedAny = false;
+
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------- sources & scanning
+
+async function pickFolder() {
+  try {
+    const dir = await window.showDirectoryPicker({ id: "rawshuck", mode: "readwrite" });
+    source = { label: "📁 " + dir.name, roots: [{ kind: "dir", handle: dir }] };
+  } catch (e) { return; } // cancelled
+  await rescan();
+}
+
+async function pickFiles() {
+  try {
+    const handles = await window.showOpenFilePicker({ id: "rawshuck", multiple: true });
+    if (!handles.length) return;
+    source = {
+      label: `📄 ${handles.length} selected file(s)`,
+      roots: handles.map((h) => ({ kind: "file", handle: h })),
+    };
+  } catch (e) { return; }
+  await rescan();
+}
+
+async function handleDrop(e) {
+  e.preventDefault();
+  $("dropZone").classList.remove("over");
+  const items = [...e.dataTransfer.items].filter((it) => it.kind === "file");
+  const handles = (await Promise.all(items.map((it) =>
+    it.getAsFileSystemHandle ? it.getAsFileSystemHandle() : null))).filter(Boolean);
+  if (!handles.length) return;
+  const roots = handles.map((h) => ({ kind: h.kind === "directory" ? "dir" : "file", handle: h }));
+  const dirs = roots.filter((r) => r.kind === "dir");
+  source = {
+    label: dirs.length === 1 && roots.length === 1
+      ? "📁 " + dirs[0].handle.name
+      : `📄 ${roots.length} dropped item(s)`,
+    roots,
+  };
+  await rescan();
+}
+
+async function gatherEntries(checkExists) {
+  const entries = [];
+  for (let r = 0; r < source.roots.length; r++) {
+    const root = source.roots[r];
+    if (root.kind === "dir") {
+      for await (const entry of root.handle.values()) {
+        if (entry.kind !== "file" || entry.name.startsWith(".")) continue;
+        entries.push({ name: entry.name, handle: entry, parent: root.handle, rootIdx: r });
+      }
+    } else {
+      const ent = { name: root.handle.name, handle: root.handle, parent: null, rootIdx: r };
+      if (checkExists) {
+        try { await root.handle.getFile(); } catch (e) { continue; } // deleted
+      }
+      entries.push(ent);
+    }
+  }
+  return entries;
+}
+
+async function rescan(checkExists) {
+  const entries = await gatherEntries(checkExists);
+  const disp = new Map(), raws = new Map();
+  for (const en of entries) {
+    const e = extOf(en.name);
+    const key = en.rootIdx + "|" + (en.parent ? "d|" : "f|") + baseOf(en.name);
+    // files picked individually share no directory context; group them together
+    const gkey = en.parent ? key : "files|" + baseOf(en.name);
+    if (DISPLAY_EXTS.has(e)) {
+      if (!disp.has(gkey)) disp.set(gkey, []);
+      disp.get(gkey).push(en);
+    } else if (RAW_EXTS.has(e)) {
+      raws.set(gkey, en);
+    }
+  }
+  const items = [];
+  for (const [key, list] of disp) {
+    list.sort((a, b) => {
+      const pa = PRIORITY.indexOf(extOf(a.name)), pb = PRIORITY.indexOf(extOf(b.name));
+      return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+    });
+    list.forEach((en, i) => items.push({ imgE: en, rawE: i === 0 ? raws.get(key) || null : null }));
+  }
+  for (const [key, en] of raws) {
+    if (!disp.has(key)) items.push({ imgE: null, rawE: en });
+  }
+  items.sort((a, b) => (a.imgE || a.rawE).name.localeCompare((b.imgE || b.rawE).name,
+    undefined, { numeric: true }));
+  photos = items.map((it, i) => ({
+    id: i,
+    name: (it.imgE || it.rawE).name,
+    imgE: it.imgE,
+    rawE: it.rawE,
+    rawOnly: !it.imgE,
+    markable: !!it.imgE && ["jpg", "jpeg"].includes(extOf(it.imgE.name)),
+    decision: null,
+  }));
+
+  urlCache.forEach((c) => c.url && URL.revokeObjectURL(c.url));
+  urlCache.clear();
+  idx = 0;
+  $("startScreen").classList.add("hidden");
+  for (const id of ["photo", "badges", "zoomInfo", "footer", "btnCommit", "btnNextUndecided"]) {
+    $(id).classList.remove("hidden");
+  }
+  const src = $("sourceName");
+  src.classList.remove("hidden");
+  src.textContent = source.label;
+  buildProgressBar();
+  if (photos.length === 0) {
+    showModal(`<h2>No images found</h2>
+      <p>No reviewable image or RAW files here (subfolders are not scanned).
+      Click the source name in the header to pick something else.</p>
+      <div class="btnrow"><button onclick="hideModal()">OK</button></div>`);
+    updateUI();
+    return;
+  }
+  showPhoto(0);
+}
+
+function backToStart() {
+  if (photos.some((p) => p.decision !== null) && !committedAny) {
+    if (!confirm("Choose a different source? Your current selections will be discarded.")) return;
+  }
+  committedAny = false;
+  photos = [];
+  source = null;
+  urlCache.forEach((c) => c.url && URL.revokeObjectURL(c.url));
+  urlCache.clear();
+  $("startScreen").classList.remove("hidden");
+  for (const id of ["photo", "noPreview", "badges", "zoomInfo", "footer", "btnCommit", "btnNextUndecided", "sourceName"]) {
+    $(id).classList.add("hidden");
+  }
+  $("counts").innerHTML = "";
+}
+
+// ---------------------------------------------------------------- previews
+
+const urlCache = new Map(); // id -> { url|null, note|null }
+
+async function previewFor(i) {
+  if (urlCache.has(i)) return urlCache.get(i);
+  const p = photos[i];
+  let result;
+  try {
+    if (p.imgE && DIRECT_EXTS.has(extOf(p.imgE.name))) {
+      const file = await p.imgE.handle.getFile();
+      result = { url: URL.createObjectURL(file) };
+    } else if (!p.imgE && p.rawE && extOf(p.rawE.name) === "cr3") {
+      const file = await p.rawE.handle.getFile();
+      const head = new Uint8Array(await file.slice(0, 8 * 1024 * 1024).arrayBuffer());
+      const range = findCr3PreviewRange(head);
+      if (range) {
+        const blob = new Blob([head.subarray(range.start, range.end)], { type: "image/jpeg" });
+        result = { url: URL.createObjectURL(blob), note: "embedded CR3 preview" };
+      } else {
+        result = { url: null, note: "Couldn't find the embedded preview in this CR3." };
+      }
+    } else if (p.imgE) {
+      result = { url: null, note: `Browsers can't display ${extOf(p.imgE.name).toUpperCase()} — preview unavailable. You can still keep or delete it.` };
+    } else {
+      result = { url: null, note: `No preview for ${extOf(p.rawE.name).toUpperCase()} yet — only CR3 embedded previews are supported so far. Sample files welcome on GitHub!` };
+    }
+  } catch (e) {
+    result = { url: null, note: "Couldn't read this file." };
+  }
+  urlCache.set(i, result);
+  return result;
+}
+
+function evictCache() {
+  for (const key of [...urlCache.keys()]) {
+    if (Math.abs(key - idx) > 4) {
+      const c = urlCache.get(key);
+      if (c.url) URL.revokeObjectURL(c.url);
+      urlCache.delete(key);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- display, zoom & pan
+
+const viewer = $("viewer");
+const img = $("photo");
+let scale = 1, fitScale = 1, tx = 0, ty = 0;
+let imgW = 0, imgH = 0;
+let loadToken = 0;
+
+async function showPhoto(i) {
+  if (!photos.length) return;
+  idx = Math.max(0, Math.min(i, photos.length - 1));
+  const token = ++loadToken;
+  updateUI();
+  const pv = await previewFor(idx);
+  if (token !== loadToken) return;
+  if (pv.url) {
+    img.onload = () => {
+      if (token !== loadToken) return;
+      img.style.display = "";
+      $("noPreview").classList.add("hidden");
+      imgW = img.naturalWidth; imgH = img.naturalHeight;
+      fit();
+    };
+    img.onerror = () => {
+      if (token !== loadToken) return;
+      img.style.display = "none";
+      $("noPreview").textContent = "Preview failed to decode.";
+      $("noPreview").classList.remove("hidden");
+    };
+    img.src = pv.url;
+  } else {
+    img.style.display = "none";
+    img.removeAttribute("src");
+    $("noPreview").innerHTML = `<div style="font-size:32px">🌽</div><div>${pv.note}</div>`;
+    $("noPreview").classList.remove("hidden");
+  }
+  evictCache();
+  for (const j of [idx + 1, idx + 2, idx - 1]) {
+    if (j >= 0 && j < photos.length) previewFor(j);
+  }
+}
+
+function fit() {
+  const cw = viewer.clientWidth, ch = viewer.clientHeight;
+  if (!imgW || !imgH || !cw || !ch) return;
+  fitScale = Math.min(cw / imgW, ch / imgH);
+  scale = fitScale;
+  tx = (cw - imgW * scale) / 2;
+  ty = (ch - imgH * scale) / 2;
+  applyTransform();
+}
+
+function applyTransform() {
+  img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  $("zoomInfo").textContent = Math.abs(scale - fitScale) < 1e-6 ? "fit" : `${Math.round(scale * 100)}%`;
+}
+
+function zoomAt(px, py, newScale) {
+  newScale = Math.max(fitScale * 0.5, Math.min(8, newScale));
+  tx = px - (px - tx) * (newScale / scale);
+  ty = py - (py - ty) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}
+
+viewer.addEventListener("wheel", (e) => {
+  if (!photos.length) return;
+  e.preventDefault();
+  const rect = viewer.getBoundingClientRect();
+  zoomAt(e.clientX - rect.left, e.clientY - rect.top, scale * Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+
+let draggingImg = false, lastX = 0, lastY = 0;
+viewer.addEventListener("pointerdown", (e) => {
+  if (!photos.length) return;
+  draggingImg = true; lastX = e.clientX; lastY = e.clientY;
+  viewer.classList.add("dragging");
+  viewer.setPointerCapture(e.pointerId);
+});
+viewer.addEventListener("pointermove", (e) => {
+  if (!draggingImg) return;
+  tx += e.clientX - lastX; ty += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransform();
+});
+viewer.addEventListener("pointerup", () => { draggingImg = false; viewer.classList.remove("dragging"); });
+viewer.addEventListener("dblclick", (e) => {
+  if (!photos.length) return;
+  const rect = viewer.getBoundingClientRect();
+  if (scale > fitScale * 1.01) fit();
+  else zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.max(1, fitScale * 2));
+});
+new ResizeObserver(() => { if (Math.abs(scale - fitScale) < 1e-6) fit(); }).observe(viewer);
+
+// ---------------------------------------------------------------- decisions & UI
+
+function decide(d) {
+  if (!photos.length) return;
+  if (d === "jpeg" && photos[idx].rawOnly) return;
+  photos[idx].decision = d;
+  updateUI();
+  if (idx < photos.length - 1) showPhoto(idx + 1);
+}
+
+function nextUndecided() {
+  const n = photos.length;
+  for (let step = 1; step <= n; step++) {
+    const j = (idx + step) % n;
+    if (photos[j].decision === null) { showPhoto(j); return; }
+  }
+}
+
+function countBy() {
+  const c = { both: 0, jpeg: 0, trash: 0, none: 0 };
+  for (const p of photos) c[p.decision || "none"]++;
+  return c;
+}
+
+function buildProgressBar() {
+  const bar = $("progressbar");
+  bar.innerHTML = "";
+  photos.forEach((_, i) => {
+    const seg = document.createElement("div");
+    seg.addEventListener("click", () => showPhoto(i));
+    bar.appendChild(seg);
+  });
+}
+
+function updateUI() {
+  const p = photos[idx];
+  const c = countBy();
+  $("counts").innerHTML =
+    `<span class="c-both">Keep both <b>${c.both}</b></span>` +
+    `<span class="c-jpeg">Image only <b>${c.jpeg}</b></span>` +
+    `<span class="c-trash">Delete <b>${c.trash}</b></span>` +
+    `<span>Undecided <b>${c.none}</b></span>`;
+  if (!p) { $("filename").textContent = ""; return; }
+  $("filename").innerHTML = `<b>${p.name}</b> · ${idx + 1} / ${photos.length}`;
+
+  const d = p.decision || "none";
+  const labels = {
+    both: p.rawOnly ? "KEEP RAW" : "KEEP IMAGE+RAW",
+    jpeg: "IMAGE ONLY", trash: "DELETE", none: "UNDECIDED",
+  };
+  const db = $("decisionBadge");
+  db.textContent = labels[d];
+  db.className = `badge decision-${d}`;
+  $("rawBadge").textContent = p.rawOnly
+    ? `RAW only (${extOf(p.rawE.name).toUpperCase()})`
+    : (p.rawE ? `RAW: ${extOf(p.rawE.name).toUpperCase()} ✓` : "no RAW file");
+
+  $("btnBoth").innerHTML =
+    `${p.rawOnly ? "Keep RAW" : "Keep image+RAW"}<span class="key">space</span>`;
+  $("btnBoth").className  = "decide" + (d === "both"  ? " active-both"  : "");
+  $("btnJpeg").className  = "decide" + (d === "jpeg"  ? " active-jpeg"  : "");
+  $("btnJpeg").disabled   = !!p.rawOnly;
+  $("btnTrash").className = "decide" + (d === "trash" ? " active-trash" : "");
+  $("btnPrev").disabled = idx === 0;
+  $("btnNext").disabled = idx === photos.length - 1;
+
+  const segs = $("progressbar").children;
+  for (let i = 0; i < segs.length; i++) {
+    segs[i].className = `d-${photos[i].decision || "none"}` + (i === idx ? " current" : "");
+  }
+}
+
+// ---------------------------------------------------------------- modal
+
+function showModal(html) { $("modalBox").innerHTML = html; $("modalBackdrop").classList.remove("hidden"); }
+function hideModal() { $("modalBackdrop").classList.add("hidden"); }
+
+// ---------------------------------------------------------------- commit
+
+async function entrySize(en) {
+  if (en._size === undefined) {
+    try { en._size = (await en.handle.getFile()).size; } catch (e) { en._size = 0; }
+  }
+  return en._size;
+}
+
+async function openCommitModal() {
+  const c = countBy();
+  const rawDrop = photos.filter((p) => p.decision === "jpeg" && p.rawE);
+  const marks = rawDrop.filter((p) => p.markable);
+  const unmarkable = rawDrop.length - marks.length;
+  const trashPicks = photos.filter((p) => p.decision === "trash");
+  const trashFiles = trashPicks.reduce((s, p) => s + (p.imgE ? 1 : 0) + (p.rawE ? 1 : 0), 0);
+  const totalFiles = rawDrop.length + trashFiles;
+
+  if (totalFiles === 0) {
+    showModal(`<h2>Nothing to delete</h2>
+      <p>${c.none > 0 ? `${c.none} photo(s) are undecided and the rest are` : "All photos are"}
+      marked "keep" — commit would delete no files.</p>
+      <div class="btnrow"><button onclick="hideModal()">OK</button></div>`);
+    return;
+  }
+
+  let freed = 0;
+  for (const p of rawDrop) freed += await entrySize(p.rawE);
+  for (const p of trashPicks) {
+    if (p.imgE) freed += await entrySize(p.imgE);
+    if (p.rawE) freed += await entrySize(p.rawE);
+  }
+
+  showModal(`
+    <h2>Commit changes?</h2>
+    ${c.none > 0 ? `<p class="warn">⚠ Options aren't selected for all photos — ${c.none} still undecided. Are you sure? (Undecided photos will be left untouched.)</p>` : ""}
+    <p>This will delete <b>${rawDrop.length}</b> RAW file(s) from "Image only" picks,
+       and <b>${trashFiles}</b> file(s) from "Delete" picks
+       — <b>${totalFiles}</b> file(s) total.</p>
+    <p>This will free <b>${fmtBytes(freed)}</b> of disk space.</p>
+    ${marks.length ? `
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
+      <input type="checkbox" id="chkMark" checked style="margin-top:2px;">
+      <span>Mark the <b>${marks.length}</b> kept JPEG(s) losing their RAW
+        (invisible ~50-byte comment; image data untouched). Prevents iCloud
+        from re-pairing them with the deleted RAW if these photos previously
+        synced to iCloud. Untick only if these files have never been in your
+        photo library.</span>
+    </label>` : ""}
+    ${unmarkable > 0 ? `<p class="warn">⚠ ${unmarkable} kept image(s) losing their RAW
+      aren't JPEGs and can't be marked — if they previously synced to iCloud,
+      reimporting them may resurrect the deleted RAW.</p>` : ""}
+    <p class="permanent">Deletion is permanent — the browser cannot use the Trash.</p>
+    <div class="btnrow">
+      <button onclick="hideModal()">Cancel</button>
+      <button class="danger" id="btnConfirmCommit">Delete ${totalFiles} file(s)</button>
+    </div>`);
+  $("btnConfirmCommit").addEventListener("click", () => {
+    const chk = $("chkMark");
+    runCommit(!chk || chk.checked);
+  });
+}
+
+async function ensureWritePermission() {
+  for (const root of source.roots) {
+    if (root.handle.requestPermission) {
+      const status = await root.handle.requestPermission({ mode: "readwrite" });
+      if (status !== "granted") return false;
+    }
+  }
+  return true;
+}
+
+async function deleteEntry(en) {
+  if (en.parent) {
+    await en.parent.removeEntry(en.name);
+  } else if (en.handle.remove) {
+    await en.handle.remove();
+  } else {
+    throw new Error("this browser can't delete individually-picked files — use folder mode");
+  }
+}
+
+async function runCommit(markFlag) {
+  showModal(`<h2>Committing…</h2><p id="commitProgress">Requesting file access…</p>`);
+  if (!(await ensureWritePermission())) {
+    showModal(`<h2>Permission denied</h2><p>Write access is needed to mark and delete files.</p>
+      <div class="btnrow"><button onclick="hideModal()">OK</button></div>`);
+    return;
+  }
+
+  // 1. Mark kept JPEGs first (prevents iCloud re-pairing on reimport).
+  const markFailures = [];
+  const skipRawIds = new Set();
+  let marked = 0;
+  if (markFlag) {
+    const marks = photos.filter((p) => p.decision === "jpeg" && p.rawE && p.markable);
+    for (const p of marks) {
+      try {
+        const file = await p.imgE.handle.getFile();
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const res = markJpegBytes(bytes, crypto.randomUUID());
+        if (res.error) throw new Error(res.error);
+        if (res.bytes) {
+          const w = await p.imgE.handle.createWritable();
+          await w.write(res.bytes);
+          await w.close();
+        }
+        marked++;
+      } catch (e) {
+        markFailures.push({ name: p.name, error: e.message });
+        // 2. Safety interlock: an unmarked JPEG + deleted RAW is the exact
+        //    setup for a silent iCloud resurrection — keep the RAW back.
+        skipRawIds.add(p.id);
+      }
+    }
+  }
+
+  // 3. Build deletion list.
+  const toDelete = [];
+  const keptBack = [];
+  for (const p of photos) {
+    if (p.decision === "jpeg" && p.rawE) {
+      if (skipRawIds.has(p.id)) keptBack.push(p.rawE.name);
+      else toDelete.push(p.rawE);
+    } else if (p.decision === "trash") {
+      if (p.imgE) toDelete.push(p.imgE);
+      if (p.rawE) toDelete.push(p.rawE);
+    }
+  }
+
+  // 4. Delete.
+  const failures = [];
+  let done = 0;
+  for (const en of toDelete) {
+    try { await deleteEntry(en); }
+    catch (e) { failures.push({ name: en.name, error: e.message }); }
+    done++;
+    const el = $("commitProgress");
+    if (el) el.textContent = `Deleting ${done} / ${toDelete.length}…`;
+  }
+  committedAny = true;
+
+  const failHtml = failures.length
+    ? `<p class="warn">⚠ ${failures.length} file(s) failed to delete:<br>` +
+      failures.slice(0, 8).map((f) => `${f.name}: ${f.error}`).join("<br>") +
+      (failures.length > 8 ? "<br>…" : "") + "</p>"
+    : "";
+  const markFailHtml = markFailures.length
+    ? `<p class="warn">⚠ ${markFailures.length} JPEG(s) could not be marked:<br>` +
+      markFailures.map((f) => `${f.name}: ${f.error}`).join("<br>") + "</p>"
+    : "";
+  const keptBackHtml = keptBack.length
+    ? `<p class="warn">⚠ Kept (not deleted) because their JPEG couldn't be marked
+       — deleting them would risk iCloud resurrecting the pair:<br>${keptBack.join("<br>")}</p>`
+    : "";
+  showModal(`
+    <h2>Done</h2>
+    <p>Deleted <b>${toDelete.length - failures.length}</b> of ${toDelete.length + keptBack.length} file(s).
+       ${marked ? `Marked <b>${marked}</b> kept JPEG(s) against iCloud re-pairing.` : ""}</p>
+    ${failHtml}${markFailHtml}${keptBackHtml}
+    <p>Your kept files are ready to import into your photo library in one batch.</p>
+    <div class="btnrow"><button class="primary" id="btnRescan">Continue</button></div>`);
+  $("btnRescan").addEventListener("click", async () => { hideModal(); await rescan(true); });
+}
+
+// ---------------------------------------------------------------- keyboard
+
+document.addEventListener("keydown", (e) => {
+  if (!$("modalBackdrop").classList.contains("hidden")) {
+    if (e.key === "Escape") hideModal();
+    return;
+  }
+  if (!photos.length) return;
+  switch (e.key) {
+    case "ArrowLeft":  e.preventDefault(); showPhoto(idx - 1); break;
+    case "ArrowRight": e.preventDefault(); showPhoto(idx + 1); break;
+    case " ":          e.preventDefault(); decide("both"); break;
+    case "j": case "J": e.preventDefault(); decide("jpeg"); break;
+    case "Backspace": case "Delete": e.preventDefault(); decide("trash"); break;
+    case "u": case "U": e.preventDefault(); photos[idx].decision = null; updateUI(); break;
+    case "n": case "N": e.preventDefault(); nextUndecided(); break;
+  }
+});
+
+// ---------------------------------------------------------------- wire up
+
+function wire(id, fn) {
+  $(id).addEventListener("click", (e) => { fn(); e.currentTarget.blur(); });
+}
+wire("btnPickFolder", pickFolder);
+wire("btnPickFiles", pickFiles);
+wire("btnPrev", () => showPhoto(idx - 1));
+wire("btnNext", () => showPhoto(idx + 1));
+wire("btnBoth", () => decide("both"));
+wire("btnJpeg", () => decide("jpeg"));
+wire("btnTrash", () => decide("trash"));
+wire("btnNextUndecided", nextUndecided);
+wire("btnCommit", openCommitModal);
+wire("sourceName", backToStart);
+$("modalBackdrop").addEventListener("click", (e) => { if (e.target === $("modalBackdrop")) hideModal(); });
+
+const dz = $("dropZone");
+for (const el of [dz, $("startScreen")]) {
+  el.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("over"); });
+  el.addEventListener("dragleave", (e) => { if (e.target === el) dz.classList.remove("over"); });
+  el.addEventListener("drop", handleDrop);
+}
+
+window.addEventListener("beforeunload", (e) => {
+  if (photos.some((p) => p.decision !== null) && !committedAny) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+if (!window.showDirectoryPicker) {
+  $("btnPickFolder").disabled = true;
+  $("btnPickFiles").disabled = true;
+  $("compatMsg").style.display = "";
+  $("dropZone").style.display = "none";
+}
+</script>
+</body>
+</html>

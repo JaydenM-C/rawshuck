@@ -17,7 +17,7 @@ This is a deliberately narrow tool. It doesn't rate, tag, edit, or organise. It 
 
 ## What it is
 
-A single Python script with no dependencies. It runs a small local web server and uses your default browser as the display; all file operations happen in the script, on your machine. Nothing is uploaded anywhere.
+A single Python script with no dependencies. It runs a small local web server and uses your default browser as the display; all file operations happen in the script, on your machine. Nothing is uploaded anywhere. (Prefer zero installation? There's also a [web version](#web-version).)
 
 - **Deletions go to the macOS Trash** (via Finder) — recoverable until you empty it.
 - **Reviews RAW+JPEG pairs, lone images, and lone RAWs.** Pairing is by filename (`IMG_1234.JPG` + `IMG_1234.CR3`).
@@ -57,6 +57,17 @@ Scroll to zoom, drag to pan, double-click toggles 100%/fit. The strip above the 
 
 Nothing touches disk until you press **Commit**, which shows exactly what will be deleted and asks for confirmation. After committing, the folder contains only survivors — import them into Photos **in one batch** so RAW+JPEG pairs link correctly (Photos only pairs files imported together).
 
+## Web version
+
+The same review flow also exists as a browser-only app in [`web/`](web/) — nothing to install, nothing uploaded anywhere (it's a static page; all file access happens locally in your browser). Differences from the Python version:
+
+- **Chromium-only** (Chrome, Edge, Brave, Arc, Opera). It relies on the File System Access API to read and delete local files, which Safari and Firefox don't support.
+- **Deletions are permanent** — browsers cannot use the Trash. Ideal for fresh-shoot culling where the SD card is your safety net; for back-catalogue tidying, the Python version's Trash-based deletes are the safer choice.
+- **Previews:** JPEG/PNG/WebP/GIF display natively. Lone CR3s display via the full embedded JPEG preview, extracted client-side from the CR3 container. Other RAW formats and HEIC/TIFF show a placeholder but remain fully reviewable — sample files from other cameras are welcome via GitHub issues so more formats can be added.
+- Sources: choose a folder, pick individual files, or drag-and-drop either onto the page. (Folder mode is smoothest — some browsers prompt separately for write access to individually-picked files.)
+
+JPEG marking against [iCloud resurrection](#the-icloud-resurrection-problem) works identically in both versions.
+
 ## The iCloud resurrection problem
 
 This deserves its own section because it is bizarre, undocumented, and confused the heck out of me.
@@ -89,6 +100,7 @@ Note: non-JPEG images (HEIC, PNG, TIFF) losing their RAW can't be marked this wa
 
 - `rawshuck.py` — the app. This is all you need.
 - `jpeg-mark.py` — standalone version of the JPEG-marking utility, for marking files outside the cull workflow (`python3 jpeg-mark.py folder-or-files`).
+- `web/index.html` — the [web version](#web-version), a single static page.
 
 ## License
 

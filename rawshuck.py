@@ -122,6 +122,13 @@ def source_label():
     return f"{len(SOURCE['files'])} selected file(s)"
 
 
+def file_size(path):
+    try:
+        return os.path.getsize(path) if path else 0
+    except OSError:
+        return 0
+
+
 def item_json(it):
     return {
         "id": it["id"],
@@ -129,6 +136,8 @@ def item_json(it):
         "raw": os.path.basename(it["raw"]) if it["raw"] else None,
         "rawOnly": it["img"] is None,
         "markable": bool(it["img"]) and ext_of(it["img"]) in ("jpg", "jpeg"),
+        "imgSize": file_size(it["img"]),
+        "rawSize": file_size(it["raw"]),
     }
 
 
@@ -757,14 +766,24 @@ function showModal(html) { $("modalBox").innerHTML = html; $("modalBackdrop").cl
 function hideModal() { $("modalBackdrop").classList.add("hidden"); }
 
 // ---------- commit ----------
+function fmtBytes(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + " GB";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + " MB";
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + " KB";
+  return n + " B";
+}
+
 function openCommitModal() {
   const c = countBy();
   const rawDrop = photos.filter((p) => p.decision === "jpeg" && p.raw);
   const marks = rawDrop.filter((p) => p.markable);
   const unmarkable = rawDrop.length - marks.length;
-  const trashFiles = photos.filter((p) => p.decision === "trash")
+  const trashPicks = photos.filter((p) => p.decision === "trash");
+  const trashFiles = trashPicks
     .reduce((s, p) => s + (p.rawOnly ? 0 : 1) + (p.raw ? 1 : 0), 0);
   const totalFiles = rawDrop.length + trashFiles;
+  const freedBytes = rawDrop.reduce((s, p) => s + (p.rawSize || 0), 0) +
+    trashPicks.reduce((s, p) => s + (p.imgSize || 0) + (p.rawSize || 0), 0);
 
   if (totalFiles === 0) {
     showModal(`<h2>Nothing to delete</h2>
@@ -780,6 +799,7 @@ function openCommitModal() {
     <p>This will delete <b>${rawDrop.length}</b> RAW file(s) from "Image only" picks,
        and <b>${trashFiles}</b> file(s) from "Delete" picks
        — <b>${totalFiles}</b> file(s) total.</p>
+    <p>This will free <b>${fmtBytes(freedBytes)}</b> of disk space (once the Trash is emptied).</p>
     ${marks.length ? `
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
       <input type="checkbox" id="chkMark" checked style="margin-top:2px;">
