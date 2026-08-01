@@ -32,6 +32,8 @@ A single Python script with no dependencies. It runs a small local web server an
 
 ## Usage
 
+Clone/download this repository and navigate to its location in the Terminal (`cd ~/PATH_TO_REPO`). Then, use the following commands in the Terminal to start the programme:
+
 ```
 python3 rawshuck.py                     # native picker: choose a folder or pick files
 python3 rawshuck.py /path/to/folder     # review a whole folder
@@ -57,13 +59,15 @@ Nothing touches disk until you press **Commit**, which shows exactly what will b
 
 ## The iCloud resurrection problem
 
-This deserves its own section because it is bizarre, undocumented, and cost the author several confused evenings.
+This deserves its own section because it is bizarre, undocumented, and confused the heck out of me.
 
-**Symptom:** you export originals from Photos, delete the RAWs, delete the originals from Photos (emptying Recently Deleted everywhere, verified on every device), reimport your culled JPEGs — and minutes later, every reimported photo is a RAW+JPEG pair again. The RAWs are back. Export confirms they're real.
+It's an issue which applies specifically when tidying an existing Photos library, using the 'export originals > delete RAWs > delete originals from Photos and reimport' workflow described above. It doesn't apply when sorting fresh photos on an SD card, which have never been imported before.
 
-**Mechanism (established empirically):** emptying Recently Deleted hides assets from every interface, but iCloud retains the underlying data server-side for a window (~30 days). When you upload a JPEG that is *byte-identical* to the JPEG half of a pair the server still holds, iCloud's deduplication re-links your "new" photo to the old asset — RAW included — and syncs it back down to all your devices. A/B tested: a reimported JPEG with a single byte changed stays JPEG-only; an identical control resurrects its RAW.
+**Symptom:** You export unmodified originals from Photos, delete the RAWs, then delete the originals from Photos (emptying Recently Deleted everywhere, and verifying they're gone from every device). You reimport your culled JPEGs, and everything initially appears to have worked as expected. Then, minutes later, you look back and every reimported photo is a RAW+JPEG pair again. The RAWs are back from the dead. It's not just a labelling issue (Photos mistakenly labelling a plain JPEG as "RAW+JPEG"), if you try re-exporting one, it'll re-export two files, including the original RAW you already deleted everywhere. It's spooky.
 
-**The fix:** Rawshuck's commit step offers to **mark** each kept JPEG whose RAW is being deleted, by inserting a standard JPEG comment segment (`COM`) containing a unique ID. This changes the file's checksum so iCloud can't match it. The image bitstream is not re-encoded — pixels are bit-identical, EXIF and capture dates untouched, file grows by ~50 bytes. The mark is on by default; untick it only for photos that have never been in your Photos library (e.g. fresh off the SD card), where there's nothing to resurrect.
+**Mechanism:** emptying Recently Deleted hides assets from every interface, but iCloud retains the underlying data server-side for a window (~30 days, ostensibly for data recovery/legal reasons). In other words, it's gone from your photos library, your Recently Deleted, all your devices, Trash, everything, you can't see it anywhere... But it's still silently hiding in Apple's servers somewhere. When you upload a JPEG that is *byte-identical* to the JPEG half of a pair the server still holds, iCloud's deduplication re-links your "new" photo to the old asset — RAW included — and syncs it back down to all your devices. I did a quick A/B test to confirm this: a reimported JPEG with a single byte changed stays JPEG-only; an identical control resurrects its RAW.
+
+**The fix:** Rawshuck's commit step offers to **mark** each kept JPEG whose RAW is being deleted, by inserting a standard JPEG comment segment (`COM`) containing a unique ID. This changes the file's checksum so iCloud can't match it. The image bitstream is not re-encoded — pixels are bit-identical, EXIF and capture dates untouched, file grows by ~50 bytes. The mark is on by default; untick it for photos that have never been in your Photos library (e.g. fresh off the SD card), where there's nothing to resurrect.
 
 Safety interlock: if a JPEG can't be marked (e.g. corrupt file), its RAW is deliberately *not* deleted, since deleting it would set up exactly the silent-resurrection scenario.
 
@@ -71,9 +75,9 @@ Note: non-JPEG images (HEIC, PNG, TIFF) losing their RAW can't be marked this wa
 
 ## Recommended workflows
 
-**Fresh shoot (the happy path):** copy the card to a staging folder → cull → commit → import survivors into Photos in one batch → format the card once verified. iCloud never sees the culled RAWs, so no marking is even needed.
+**Fresh shoot (sorting prior to first import):** copy the SD card to a staging folder → cull → commit → import survivors into Photos in one batch → empty/format the card once verified. iCloud never sees the culled RAWs, so no JPEG marking is even needed.
 
-**Back catalog:** select photos in Photos → File → Export → Export Unmodified Originals → cull the exported folder → commit (leave marking on) → delete the originals from Photos and empty Recently Deleted → reimport the survivors in one batch.
+**Back catalogue:** select photos in Photos → File → Export → Export Unmodified Originals → cull the exported folder → commit (leave marking on) → delete the originals from Photos and empty Recently Deleted → reimport the survivors in one batch.
 
 ## Safety notes
 
