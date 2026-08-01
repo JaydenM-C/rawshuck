@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rawshuck — cull RAW+JPEG photos</title>
 <meta name="description" content="Cull RAW+JPEG photo shoots in your browser. Keep the JPEGs, shuck the RAWs. Runs entirely locally — no uploads.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦪</text></svg>">
 <style>
   :root {
     --bg: #16181c; --panel: #1f2228; --border: #32363e;
@@ -139,7 +139,7 @@
 <body>
 
 <header>
-  <span class="title">🌽 Rawshuck</span>
+  <span class="title">🦪 Rawshuck</span>
   <span id="sourceName" class="hidden" title="Click to choose a different folder or set of files"></span>
   <span class="spacer"></span>
   <div class="counts" id="counts"></div>
@@ -149,8 +149,8 @@
 
 <div id="viewer">
   <div id="startScreen">
-    <h1>🌽 Rawshuck</h1>
-    <p class="tagline">Cull RAW+JPEG shoots <i>before</i> importing into your photo library.
+    <h1>🦪 Rawshuck</h1>
+    <p class="tagline">Cull RAW+JPEG shoots before importing into your photo library.
       Review each photo once and pick its fate: keep image+RAW, keep the image only,
       or delete. Runs entirely in your browser — nothing is uploaded anywhere.</p>
     <div id="dropZone">Drag &amp; drop a folder (or image files) here</div>
@@ -505,7 +505,7 @@ async function showPhoto(i) {
   } else {
     img.style.display = "none";
     img.removeAttribute("src");
-    $("noPreview").innerHTML = `<div style="font-size:32px">🌽</div><div>${pv.note}</div>`;
+    $("noPreview").innerHTML = `<div style="font-size:32px">🦪</div><div>${pv.note}</div>`;
     $("noPreview").classList.remove("hidden");
   }
   evictCache();
