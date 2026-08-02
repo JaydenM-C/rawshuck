@@ -4,6 +4,8 @@ Spare your hard drive! Cull RAW+JPEG shoots *before* importing into your photo l
 
 *To shuck: to strip away the husk and keep the kernel. Here the husk is 40&nbsp;MB.*
 
+Read the full story — including the strange case of the resurrected RAW files — [on the blog](https://macklin-cordes.com/posts/2026/08/rawshuck/).
+
 ## The predicament
 
 If you shoot RAW+JPEG and use Apple Photos then, like me, you may have discovered two pain points:

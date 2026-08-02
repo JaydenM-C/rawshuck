@@ -135,6 +135,15 @@
   .startBtns button { font-size: 15px; padding: 10px 22px; }
   .startNote { font-size: 12.5px; color: var(--dim); max-width: 560px; line-height: 1.5; }
   .startNote.warn { color: #e0b055; }
+
+  /* info bar */
+  #infobar {
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 4px 14px; background: var(--panel); border-top: 1px solid var(--border);
+    font-size: 11.5px; color: var(--dim);
+  }
+  #infobar a { color: var(--dim); }
+  #infobar a:hover { color: var(--text); }
 </style>
 </head>
 <body>
@@ -188,6 +197,11 @@
   </div>
   <div class="hint">&#8592; &#8594; navigate &middot; U clear choice &middot; N next undecided &middot; scroll to zoom &middot; drag to pan &middot; double-click 100%/fit</div>
 </footer>
+
+<div id="infobar">
+  <span>For info &amp; usage, see <a href="https://macklin-cordes.com/posts/2026/08/rawshuck/" target="_blank" rel="noopener">the blog</a></span>
+  <span>© Jayden Macklin-Cordes (<a href="https://github.com/JaydenM-C/rawshuck/blob/main/LICENSE" target="_blank" rel="noopener">GPL v3 licence</a>)</span>
+</div>
 
 <div class="modal-backdrop hidden" id="modalBackdrop">
   <div class="modal" id="modalBox"></div>

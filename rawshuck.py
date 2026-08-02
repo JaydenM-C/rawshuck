@@ -510,6 +510,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
   .decide.active-trash { border-color: var(--red); color: var(--red); }
   .navbtn { padding: 9px 14px; font-size: 16px; }
   .hint { text-align: center; font-size: 12px; color: var(--dim); }
+  #infobar {
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 4px 14px; background: var(--panel); border-top: 1px solid var(--border);
+    font-size: 11.5px; color: var(--dim);
+  }
+  #infobar a { color: var(--dim); }
+  #infobar a:hover { color: var(--text); }
   #filename { text-align: center; font-size: 13px; color: var(--dim); }
   #filename b { color: var(--text); font-weight: 500; }
   #progressbar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: #2a2e36; }
@@ -570,6 +577,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
   </div>
   <div class="hint">&#8592; &#8594; navigate &middot; U clear choice &middot; N next undecided &middot; scroll to zoom &middot; drag to pan &middot; double-click 100%/fit</div>
 </footer>
+
+<div id="infobar">
+  <span>For info &amp; usage, see <a href="https://macklin-cordes.com/posts/2026/08/rawshuck/" target="_blank" rel="noopener">the blog</a></span>
+  <span>© Jayden Macklin-Cordes (<a href="https://github.com/JaydenM-C/rawshuck/blob/main/LICENSE" target="_blank" rel="noopener">GPL v3 licence</a>)</span>
+</div>
 
 <div class="modal-backdrop hidden" id="modalBackdrop">
   <div class="modal" id="modalBox"></div>
