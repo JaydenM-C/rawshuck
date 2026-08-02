@@ -446,17 +446,17 @@ INDEX_HTML = r"""<!DOCTYPE html>
   }
   header .title { font-weight: 600; }
   header .spacer { flex: 1; }
-  #sourceName { color: var(--dim); font-size: 13px; }
+  #sourceName { color: var(--dim); font-size: 15px; }
   #sourceName.switchable { cursor: pointer; border-bottom: 1px dotted var(--dim); }
   #sourceName.switchable:hover { color: var(--text); border-bottom-color: var(--text); }
-  .counts { display: flex; gap: 12px; font-size: 13px; color: var(--dim); }
+  .counts { display: flex; gap: 12px; font-size: 15px; color: var(--dim); }
   .counts b { color: var(--text); }
   .counts .c-both b { color: var(--green); }
   .counts .c-jpeg b { color: var(--blue); }
   .counts .c-trash b { color: var(--red); }
   button {
     background: #2a2e36; color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+    border-radius: 6px; padding: 6px 14px; font-size: 15px; cursor: pointer;
   }
   button:hover { background: #343943; }
   button:disabled { opacity: 0.4; cursor: default; }
@@ -475,14 +475,14 @@ INDEX_HTML = r"""<!DOCTYPE html>
   }
   #noPreview {
     position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; color: var(--dim); font-size: 15px; pointer-events: none;
+    justify-content: center; color: var(--dim); font-size: 17px; pointer-events: none;
   }
   .overlay-badge {
     position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center;
     pointer-events: none; z-index: 5;
   }
   .badge {
-    padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 5px; font-size: 14px; font-weight: 600;
     background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
   }
   .badge.decision-both { color: var(--green); border: 1px solid var(--green); }
@@ -492,7 +492,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   .badge.rawinfo { color: var(--dim); border: 1px solid var(--border); }
   #zoomInfo {
     position: absolute; top: 12px; right: 12px; z-index: 5; pointer-events: none;
-    font-size: 12px; color: var(--dim); background: rgba(0,0,0,0.55);
+    font-size: 14px; color: var(--dim); background: rgba(0,0,0,0.55);
     padding: 4px 10px; border-radius: 5px;
   }
   footer {
@@ -500,24 +500,24 @@ INDEX_HTML = r"""<!DOCTYPE html>
     padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
   }
   .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
-  .decide { padding: 9px 18px; font-size: 14px; border-radius: 8px; border-width: 2px; }
+  .decide { padding: 9px 18px; font-size: 16px; border-radius: 8px; border-width: 2px; }
   .decide .key {
     display: inline-block; background: rgba(255,255,255,0.12); border-radius: 4px;
-    padding: 1px 7px; font-size: 11px; margin-left: 8px; font-family: ui-monospace, monospace;
+    padding: 1px 7px; font-size: 12.5px; margin-left: 8px; font-family: ui-monospace, monospace;
   }
   .decide.active-both { border-color: var(--green); color: var(--green); }
   .decide.active-jpeg { border-color: var(--blue); color: var(--blue); }
   .decide.active-trash { border-color: var(--red); color: var(--red); }
-  .navbtn { padding: 9px 14px; font-size: 16px; }
-  .hint { text-align: center; font-size: 12px; color: var(--dim); }
+  .navbtn { padding: 9px 14px; font-size: 18.5px; }
+  .hint { text-align: center; font-size: 14px; color: var(--dim); }
   #infobar {
     display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 4px 14px; background: var(--panel); border-top: 1px solid var(--border);
-    font-size: 11.5px; color: var(--dim);
+    font-size: 13px; color: var(--dim);
   }
   #infobar a { color: var(--dim); }
   #infobar a:hover { color: var(--text); }
-  #filename { text-align: center; font-size: 13px; color: var(--dim); }
+  #filename { text-align: center; font-size: 15px; color: var(--dim); }
   #filename b { color: var(--text); font-weight: 500; }
   #progressbar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: #2a2e36; }
   #progressbar div { flex: 1; min-width: 0; cursor: pointer; }
@@ -534,8 +534,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 24px; max-width: 500px; width: 92%; max-height: 85vh; overflow-y: auto;
   }
-  .modal h2 { font-size: 17px; margin-bottom: 12px; }
-  .modal p { font-size: 14px; line-height: 1.55; color: var(--dim); margin-bottom: 10px; }
+  .modal h2 { font-size: 19.5px; margin-bottom: 12px; }
+  .modal p { font-size: 16px; line-height: 1.55; color: var(--dim); margin-bottom: 10px; }
   .modal p b { color: var(--text); }
   .modal .warn { color: #e0b055; font-weight: 500; }
   .modal .good { color: var(--green); font-weight: 500; }
@@ -550,7 +550,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <span id="sourceName" title="Click to review a different folder or set of files"></span>
   <span class="spacer"></span>
   <div class="counts" id="counts"></div>
-  <button id="btnNextUndecided">Next undecided <span style="opacity:.6;font-size:11px">N</span></button>
+  <button id="btnNextUndecided">Next undecided <span style="opacity:.6;font-size:12.5px">N</span></button>
   <button id="btnCommit" class="primary">Commit…</button>
   <button id="btnQuit" title="Stop the app">Quit</button>
 </header>
@@ -579,7 +579,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
 </footer>
 
 <div id="infobar">
-  <span>For info &amp; usage, see <a href="https://macklin-cordes.com/posts/2026/08/rawshuck/" target="_blank" rel="noopener">the blog</a></span>
+  <span>Usage instructions: see the <a href="https://github.com/JaydenM-C/rawshuck" target="_blank" rel="noopener">README</a>. Read more on <a href="https://macklin-cordes.com/posts/2026/08/rawshuck/" target="_blank" rel="noopener">the blog</a>.</span>
   <span>© Jayden Macklin-Cordes (<a href="https://github.com/JaydenM-C/rawshuck/blob/main/LICENSE" target="_blank" rel="noopener">GPL v3 licence</a>)</span>
 </div>
 
@@ -813,7 +813,7 @@ function openCommitModal() {
        — <b>${totalFiles}</b> file(s) total.</p>
     <p>This will free <b>${fmtBytes(freedBytes)}</b> of disk space (once the Trash is emptied).</p>
     ${marks.length ? `
-    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:15px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
       <input type="checkbox" id="chkMark" checked style="margin-top:2px;">
       <span>Mark the <b>${marks.length}</b> kept JPEG(s) losing their RAW
         (invisible ~50-byte comment; image data untouched). Prevents iCloud
