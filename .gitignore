@@ -1,0 +1,9 @@
+*.pyc
+.DS_Store
+.photo-cull-trash/
+.rawshuck-trash/
+__pycache__/
+diagnostics/
+dodgy_batch/
+dodgy_fixed/
+/__pycache__

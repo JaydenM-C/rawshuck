@@ -233,36 +233,28 @@ function baseOf(name) {
   return (dot > 0 ? name.slice(0, dot) : name).toLowerCase();
 }
 
-// Insert a unique JPEG COM (comment) segment so the file's checksum differs
+// Append a unique tag to the very end of the file so its checksum differs
 // from copies iCloud Photos has previously seen — otherwise iCloud's
 // server-side dedupe re-pairs reimported JPEGs with their deleted RAWs.
-// Image data and EXIF untouched; no re-encoding.
+// Appending (rather than inserting mid-file) leaves every internal offset
+// intact: Canon JPEGs carry an MPF table pointing at a second image stored
+// after the main image's EOI, and a mid-file insertion silently corrupts
+// those pointers (which made Apple Photos drop the files from large imports).
 // NB: the "photo-cull:" marker predates the project's name and is kept
 // stable so files marked by any version are recognised (internal format).
 function markJpegBytes(bytes, uuidStr) {
   if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) {
     return { error: "not a JPEG (missing SOI marker)" };
   }
-  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 65536));
-  if (head.includes("photo-cull:")) return { already: true };
-  // Insertion point: after SOI and any contiguous APPn (JFIF/EXIF) segments.
-  let i = 2;
-  while (i + 4 <= bytes.length && bytes[i] === 0xFF &&
-         bytes[i + 1] >= 0xE0 && bytes[i + 1] <= 0xEF) {
-    const seglen = (bytes[i + 2] << 8) | bytes[i + 3];
-    if (seglen < 2) return { error: "malformed APPn segment" };
-    i += 2 + seglen;
+  const dec = new TextDecoder("latin1");
+  if (dec.decode(bytes.subarray(0, 65536)).includes("photo-cull:") ||
+      dec.decode(bytes.subarray(Math.max(0, bytes.length - 4096))).includes("photo-cull:")) {
+    return { already: true };
   }
-  const comment = new TextEncoder().encode("photo-cull:" + uuidStr);
-  const seg = new Uint8Array(4 + comment.length);
-  seg[0] = 0xFF; seg[1] = 0xFE;
-  const len = comment.length + 2;
-  seg[2] = (len >> 8) & 0xFF; seg[3] = len & 0xFF;
-  seg.set(comment, 4);
-  const out = new Uint8Array(bytes.length + seg.length);
-  out.set(bytes.subarray(0, i), 0);
-  out.set(seg, i);
-  out.set(bytes.subarray(i), i + seg.length);
+  const tag = new TextEncoder().encode("\nphoto-cull:" + uuidStr + "\n");
+  const out = new Uint8Array(bytes.length + tag.length);
+  out.set(bytes, 0);
+  out.set(tag, bytes.length);
   return { bytes: out };
 }
 
@@ -703,10 +695,10 @@ async function openCommitModal() {
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:15px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
       <input type="checkbox" id="chkMark" checked style="margin-top:2px;">
       <span>Mark the <b>${marks.length}</b> kept JPEG(s) losing their RAW
-        (invisible ~50-byte comment; image data untouched). Prevents iCloud
-        from re-pairing them with the deleted RAW if these photos previously
-        synced to iCloud. Untick only if these files have never been in your
-        photo library.</span>
+        (invisible ~50-byte tag appended to the end of the file; image data
+        untouched). Prevents iCloud from re-pairing them with the deleted RAW
+        if these photos previously synced to iCloud. Untick only if these
+        files have never been in your photo library.</span>
     </label>` : ""}
     ${unmarkable > 0 ? `<p class="warn">⚠ ${unmarkable} kept image(s) losing their RAW
       aren't JPEGs and can't be marked — if they previously synced to iCloud,

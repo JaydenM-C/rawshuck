@@ -45,7 +45,7 @@ import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # Formats browsers render natively — served as-is.
 DISPLAY_EXTS_DIRECT = {"jpg", "jpeg", "png", "webp", "gif"}
@@ -207,33 +207,33 @@ def trash_files(paths):
 # ---------------------------------------------------------------- marking
 
 def mark_jpeg(path):
-    """Insert a unique JPEG COM (comment) segment so the file's checksum
-    differs from copies iCloud Photos has previously seen — otherwise iCloud's
+    """Append a unique tag to the very end of the file so its checksum differs
+    from copies iCloud Photos has previously seen — otherwise iCloud's
     server-side dedupe re-pairs reimported JPEGs with their deleted RAWs.
-    Image data and EXIF are untouched; no re-encoding. Returns error or None."""
+
+    The tag is appended after all image data rather than inserted mid-file:
+    Canon (and other) JPEGs carry an MPF offset table pointing at a second
+    full-size image stored after the main image's EOI marker, and a mid-file
+    insertion silently invalidates those offsets — which in turn made Apple
+    Photos drop the files from large mixed imports without any error (v1.0.0
+    did this; use jpeg-mark.py --repair to migrate files marked by it).
+    Appending displaces nothing: image data, EXIF, and every internal offset
+    stay intact. Returns error or None.
+
+    NB: the "photo-cull:" marker predates the project's name and is kept
+    stable so files marked by any version are recognised (internal format)."""
     with open(path, "rb") as f:
         data = f.read()
     if data[:2] != b"\xff\xd8":
         return "not a JPEG (missing SOI marker)"
-    # NB: the "photo-cull:" marker predates the project's name and is kept
-    # stable so files marked by any version are recognised (internal format).
-    if b"photo-cull:" in data[:65536]:
-        return None  # already marked — nothing to do
-    # Insertion point: after SOI and any contiguous APPn (JFIF/EXIF) segments.
-    i = 2
-    while i + 4 <= len(data) and data[i] == 0xFF and 0xE0 <= data[i + 1] <= 0xEF:
-        seglen = int.from_bytes(data[i + 2:i + 4], "big")
-        if seglen < 2:
-            return "malformed APPn segment"
-        i += 2 + seglen
-    comment = f"photo-cull:{uuid.uuid4()}".encode("ascii")
-    segment = b"\xff\xfe" + (len(comment) + 2).to_bytes(2, "big") + comment
+    if b"photo-cull:" in data[:65536] or b"photo-cull:" in data[-4096:]:
+        return None  # already marked (by any version) — nothing to do
+    tag = f"\nphoto-cull:{uuid.uuid4()}\n".encode("ascii")
     tmp = path + ".jpeg-mark-tmp"
     try:
         with open(tmp, "wb") as f:
-            f.write(data[:i])
-            f.write(segment)
-            f.write(data[i:])
+            f.write(data)
+            f.write(tag)
         os.replace(tmp, path)  # atomic swap
     except Exception as e:
         try:
@@ -816,10 +816,10 @@ function openCommitModal() {
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:15px;color:var(--dim);margin-bottom:10px;cursor:pointer;">
       <input type="checkbox" id="chkMark" checked style="margin-top:2px;">
       <span>Mark the <b>${marks.length}</b> kept JPEG(s) losing their RAW
-        (invisible ~50-byte comment; image data untouched). Prevents iCloud
-        from re-pairing them with the deleted RAW if these photos previously
-        synced to iCloud. Untick only if these files have never been in your
-        Photos library.</span>
+        (invisible ~50-byte tag appended to the end of the file; image data
+        untouched). Prevents iCloud from re-pairing them with the deleted RAW
+        if these photos previously synced to iCloud. Untick only if these
+        files have never been in your Photos library.</span>
     </label>` : ""}
     ${unmarkable > 0 ? `<p class="warn">⚠ ${unmarkable} kept image(s) losing their RAW
       aren't JPEGs and can't be marked — if they previously synced to iCloud,
