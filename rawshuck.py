@@ -45,7 +45,7 @@ import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 # Formats browsers render natively — served as-is.
 DISPLAY_EXTS_DIRECT = {"jpg", "jpeg", "png", "webp", "gif"}
@@ -206,40 +206,71 @@ def trash_files(paths):
 
 # ---------------------------------------------------------------- marking
 
+MARK = b"photo-cull:"
+
+
+def scan_jpeg_mark(path):
+    """(is_jpeg, already_marked), reading only the head and tail of the file.
+
+    v1.0.0 wrote the mark mid-file as a COM segment just after the APPn run,
+    so the legacy location is within the first 64 KB; the current mark sits at
+    the very end. Checking both means files of any vintage are recognised, and
+    reading ~68 KB instead of the whole 10-25 MB keeps commit fast."""
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        head = f.read(65536)
+        tail = b""
+        if size > 65536:
+            f.seek(max(size - 4096, 65536))
+            tail = f.read()
+    return head[:2] == b"\xff\xd8", (MARK in head or MARK in tail)
+
+
 def mark_jpeg(path):
     """Append a unique tag to the very end of the file so its checksum differs
     from copies iCloud Photos has previously seen — otherwise iCloud's
     server-side dedupe re-pairs reimported JPEGs with their deleted RAWs.
 
-    The tag is appended after all image data rather than inserted mid-file:
-    Canon (and other) JPEGs carry an MPF offset table pointing at a second
-    full-size image stored after the main image's EOI marker, and a mid-file
-    insertion silently invalidates those offsets — which in turn made Apple
-    Photos drop the files from large mixed imports without any error (v1.0.0
-    did this; use jpeg-mark.py --repair to migrate files marked by it).
-    Appending displaces nothing: image data, EXIF, and every internal offset
-    stay intact. Returns error or None.
+    Two important properties:
+
+    1. The tag goes *after* all image data rather than mid-file. Canon (and
+       other) JPEGs carry an MPF offset table pointing at a second embedded
+       image stored past the main image's EOI marker, and a mid-file insertion
+       silently invalidates every offset in it (v1.0.0 did this; use
+       jpeg-mark.py --repair to migrate files marked by it). Appending
+       displaces nothing: image data, EXIF and every internal offset stay put.
+
+    2. The tag is appended *in place*, not written via a temp file and
+       os.replace. A replaced file is a new file, and a new file has no
+       extended attributes — which silently stripped the com.apple.quarantine
+       flag that Photos stamps on the originals it exports. That left a culled
+       folder holding two classes of file, and macOS splits a mixed drag into
+       separate open-document AppleEvents, whereupon Photos' import pane shows
+       only the last one and the rest are silently never imported. Appending
+       preserves the inode and every xattr, so the folder stays homogeneous.
+       (It is also ~10 MB per file less I/O.)
+
+    Returns error or None.
 
     NB: the "photo-cull:" marker predates the project's name and is kept
     stable so files marked by any version are recognised (internal format)."""
-    with open(path, "rb") as f:
-        data = f.read()
-    if data[:2] != b"\xff\xd8":
-        return "not a JPEG (missing SOI marker)"
-    if b"photo-cull:" in data[:65536] or b"photo-cull:" in data[-4096:]:
-        return None  # already marked (by any version) — nothing to do
-    tag = f"\nphoto-cull:{uuid.uuid4()}\n".encode("ascii")
-    tmp = path + ".jpeg-mark-tmp"
     try:
-        with open(tmp, "wb") as f:
-            f.write(data)
+        is_jpeg, already_marked = scan_jpeg_mark(path)
+    except OSError as e:
+        return str(e)
+    if not is_jpeg:
+        return "not a JPEG (missing SOI marker)"
+    if already_marked:
+        return None  # marked by some version already — nothing to do
+    tag = f"\nphoto-cull:{uuid.uuid4()}\n".encode("ascii")
+    try:
+        # Single small write, appended past EOI. Not atomic in the strict
+        # sense, but a torn write leaves a partial tag after the end of the
+        # image, which every decoder ignores; re-running simply appends a
+        # whole one. That is a better failure mode than losing the xattrs.
+        with open(path, "ab") as f:
             f.write(tag)
-        os.replace(tmp, path)  # atomic swap
     except Exception as e:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
         return str(e)
     return None
 

@@ -61,7 +61,7 @@ Scroll to zoom, drag to pan, double-click toggles 100%/fit. The strip above the 
 
 Nothing touches disk until you press **Commit**, which shows exactly what will be deleted and asks for confirmation. After committing, the folder contains only survivors — import them into Photos **in one batch** so RAW+JPEG pairs link correctly (Photos only pairs files imported together).
 
-> **⚠ Check the import count.** Apple Photos' import window can silently drop files from large drag-imports (roughly 100+ photos), with no error shown — the count just comes up short, or the list briefly flashes and empties. This appears to be load-dependent flakiness in Photos itself: the *same* files import fine when retried or split into halves. So: before clicking Import, check that the number of photos shown equals the number you expect (pairs + lone images). If it's short, cancel and drag again — that often fixes it — and if it's still short, import in two halves. Never empty your staging folder or format your card until the counts match.
+> **⚠ Check the import count.** Before clicking Import, check that the number of photos shown equals the number you expect (pairs + lone images). And, for those cleaning a back catalogue using the export > cull > reimport trick, it's safest to **drag the folder, not the files** when reimporting (or use `File → Import…`).
 
 ## Web version
 
@@ -86,9 +86,7 @@ It's an issue which applies specifically when tidying an existing Photos library
 
 **Mechanism:** emptying Recently Deleted hides assets from every interface, but iCloud retains the underlying data server-side for a window (~30 days, ostensibly for data recovery/legal reasons). In other words, it's gone from your photos library, your Recently Deleted, all your devices, Trash, everything, you can't see it anywhere... But it's still silently hiding in Apple's servers somewhere. When you upload a JPEG that is *byte-identical* to the JPEG half of a pair the server still holds, iCloud's deduplication re-links your "new" photo to the old asset — RAW included — and syncs it back down to all your devices. I did a quick A/B test to confirm this: a reimported JPEG with a single byte changed stays JPEG-only; an identical control resurrects its RAW.
 
-**The fix:** Rawshuck's commit step offers to **mark** each kept JPEG whose RAW is being deleted, by appending a tiny tag containing a unique ID to the very end of the file. This changes the file's checksum so iCloud can't match it. The image bitstream is not re-encoded — pixels are bit-identical, EXIF and capture dates untouched, file grows by ~50 bytes, and because the tag is *appended* rather than inserted, every internal structure of the file stays byte-for-byte in place. The mark is on by default; untick it for photos that have never been in your Photos library (e.g. fresh off the SD card), where there's nothing to resurrect.
-
-> **Note for v1.0.0 users:** the original release inserted the mark *mid-file* as a JPEG comment segment. That turned out to silently corrupt the MPF offset table that Canon JPEGs use to locate a second embedded image stored at the end of the file — and Apple Photos responds to that corruption by silently omitting the affected files from large mixed imports, with no error shown (a genuinely nasty failure mode that took some detective work to pin down). v1.1.0 appends the tag at the end of the file instead, which displaces nothing. If you marked files with v1.0.0, migrate them with `python3 jpeg-mark.py --repair /path/to/folder` — it removes the mid-file comment, restoring the original structure exactly, and re-tags the file at the tail.
+**The fix:** Rawshuck's commit step offers to **mark** each kept JPEG whose RAW is being deleted, by appending a tiny tag containing a unique ID to the very end of the file. This changes the file's checksum so iCloud can't match it. The image bitstream is not re-encoded — pixels are bit-identical, EXIF and capture dates untouched, file grows by ~50 bytes, and because the tag is *appended* rather than inserted, every internal structure of the file stays byte-for-byte in place. The bytes are appended **in place**, so the file keeps its inode and its extended attributes too (see the import warning above for why that matters). The mark is on by default; untick it for photos that have never been in your Photos library (e.g. fresh off the SD card), where there's nothing to resurrect.
 
 Safety interlock: if a JPEG can't be marked (e.g. corrupt file), its RAW is deliberately *not* deleted, since deleting it would set up exactly the silent-resurrection scenario.
 
@@ -96,9 +94,9 @@ Note: non-JPEG images (HEIC, PNG, TIFF) losing their RAW can't be marked this wa
 
 ## Recommended workflows
 
-**Fresh shoot (sorting prior to first import):** copy the SD card to a staging folder → cull → commit → import survivors into Photos in one batch → empty/format the card once verified. iCloud never sees the culled RAWs, so no JPEG marking is even needed.
+**Fresh shoot (sorting prior to first import):** copy the SD card to a staging folder → cull → commit → import survivors into Photos → empty/format the card once verified. iCloud never sees the culled RAWs, so no JPEG marking is even needed.
 
-**Back catalogue:** select photos in Photos → File → Export → Export Unmodified Originals → cull the exported folder → commit (leave marking on) → delete the originals from Photos and empty Recently Deleted → reimport the survivors in one batch.
+**Back catalogue:** select photos in Photos → File → Export → Export Unmodified Originals → cull the exported folder → commit (leave marking on) → delete the originals from Photos and empty Recently Deleted → reimport the survivors by dragging the **folder** onto Photos.
 
 ## Safety notes
 
@@ -115,3 +113,21 @@ Note: non-JPEG images (HEIC, PNG, TIFF) losing their RAW can't be marked this wa
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE).
+
+## Change log
+
+**v.1.1.0**
+
+The original release inserted the mark *mid-file* as a JPEG comment segment. That turned out to shift the MPF offset table that Canon JPEGs use to locate a second embedded image (a 1620×1080 preview) stored after the end of the main image: the pixel data is untouched, but every pointer in the table ends up 51 bytes stale. v1.1.0 appends the tag after the end of the file instead, which displaces nothing.
+
+If you have v1.0.0-marked files still on disk, you can migrate them with `python3 jpeg-mark.py --repair /path/to/folder` — it removes the mid-file comment, restoring the original structure byte-exactly, re-tags the file at the tail, and carries the extended attributes across. **Files already imported into Photos can be left alone**: essentially every decoder reads the main image directly and ignores MPF, so they display, export and edit normally. The damage is confined to a pointer to a preview thumbnail, which is unlikely to matter in practice.
+
+**v.1.1.1**
+
+A weird bug was discovered in the previous version, specifically when cleaning a back-catalogue using the export > cull > reimport workflow. On reimport, if you were to select many files (e.g. Cmd+A on your staging folder) and then drag them into Photos to reimport, Photos would sometimes fail to show all the photos you were trying to import. It would briefly flash some of the photos (namely the marked JPEGs, whose RAWs you deleted), then they would disappear and only show the others (namely the RAW+JPEG pairs, and any lone JPEGs that never had a RAW pair). Or sometimes the pictures would disappear from the Import list all together.
+
+After much troubleshooting, the cause was identified: macOS splits the dropped files into *separate open-document events* whenever the files aren't uniform in their `com.apple.quarantine` flag. And then Photos essentially treats it as two separate import events, and only shows the last one. This is why the list of photos to be imported briefly flashes one half of the photos, then then other.
+
+Photos attaches this `com.apple.quarantine` flag when it exports originals. When earlier versions of Rawshuck would mark a JPEG (to avoid the RAW resurrection issue) it would rewrite it without the flag, so a culled back-catalogue folder held two classes of file and got split down that seam. **As of v1.1.1, marking appends in place and preserves every extended attribute**, so newly culled folders stay uniform. Folders culled with earlier versions — and any folder mixing files from different sources — can still trip it.
+
+**One easy failsafe:** Instead of selecting and dragging many individual files, dragging the **enclosing folder** into Photos instead. This reliably triggers a single import event and avoids the bug entirely. `File → Import…` works too. Or level the flag yourself before dragging: `xattr -r -d com.apple.quarantine /path/to/staging-folder`
